@@ -78,7 +78,7 @@ service /mqtt on new http:Listener(9100) {
 function publishMessages() {
     startedTime = time:utcNow();
     // Publishing messages for 1 hour
-    int endingTimeInSecs = startedTime[0] + 60;
+    int endingTimeInSecs = startedTime[0] + 30;
     mqtt:Client|mqtt:Error 'client = new (MQTT_CLUSTER, uuid:createType1AsString());
     if 'client is mqtt:Error {
         log:printError("Error while creating the client.", 'client);
@@ -97,6 +97,7 @@ function publishMessages() {
                 errorCount += 1;
             }
         } else {
+            log:printInfo("Published message." + result.toString());
             sentCount += 1;
         }
         runtime:sleep(0.1);
@@ -124,6 +125,7 @@ function startListener() returns error? {
 mqtt:Service mqttService =
 service object {
     remote function onMessage(mqtt:Message message, mqtt:Caller caller) returns error? {
+        log:printInfo("Received message from the broker." + check string:fromBytes(message.payload));
         string|error messageContent = 'string:fromBytes(message.payload);
         if messageContent is error {
             lock {

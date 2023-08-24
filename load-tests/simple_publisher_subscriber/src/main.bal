@@ -19,7 +19,6 @@ import ballerina/lang.runtime;
 import ballerina/lang.value;
 import ballerina/mqtt;
 import ballerina/time;
-import ballerina/log;
 import ballerina/uuid;
 
 const string TOPIC = "mqtt/perf-topic";
@@ -48,10 +47,11 @@ boolean finished = false;
 
 service /mqtt on new http:Listener(9100) {
 
-    resource function get publish() returns error? {
-        log:printInfo("Received request to start publishing messages.");
-        check startListener();
-        log:printInfo("Started listener.");
+    resource function get publish() returns boolean {
+        error? result = startListener();
+        if result is error {
+            return false;
+        }
         errorCount = 0;
         sentCount = 0;
         receivedCount = 0;
@@ -59,7 +59,7 @@ service /mqtt on new http:Listener(9100) {
         endedTime = time:utcNow();
         finished = false;
         _ = start publishMessages();
-        log:printInfo("Started publishing messages.");
+        return true;
     }
 
     resource function get getResults() returns boolean|map<string> {
@@ -75,19 +75,11 @@ service /mqtt on new http:Listener(9100) {
     }
 }
 
-function publishMessages() {
+function publishMessages() returns error? {
     startedTime = time:utcNow();
     // Publishing messages for 1 hour
-    int endingTimeInSecs = startedTime[0] + 30;
-    mqtt:Client|mqtt:Error 'client = new (MQTT_CLUSTER, uuid:createType1AsString());
-    if 'client is mqtt:Error {
-        log:printError("Error while creating the client.", 'client);
-        lock {
-            errorCount += 1;
-        }
-        finished = true;
-        return;
-    }
+    int endingTimeInSecs = startedTime[0] + 20;
+    mqtt:Client 'client = check new(MQTT_CLUSTER, uuid:createType1AsString());
     while time:utcNow()[0] <= endingTimeInSecs {
         mqtt:DeliveryToken|error result = 'client->publish(TOPIC, {
             payload: SENDING_MESSAGE.toJsonString().toBytes()
@@ -97,10 +89,8 @@ function publishMessages() {
                 errorCount += 1;
             }
         } else {
-            log:printInfo("Published message." + result.toString());
-            sentCount += 1;
+            sentCount +=1;
         }
-        runtime:sleep(0.1);
     }
     mqtt:DeliveryToken|error result = 'client->publish(TOPIC, {
         payload: FINAL_MESSAGE.toJsonString().toBytes()
@@ -109,9 +99,8 @@ function publishMessages() {
         lock {
             errorCount += 1;
         }
-        finished = true;
     } else {
-        sentCount += 1;
+        sentCount +=1;
     }
 }
 
@@ -125,7 +114,6 @@ function startListener() returns error? {
 mqtt:Service mqttService =
 service object {
     remote function onMessage(mqtt:Message message, mqtt:Caller caller) returns error? {
-        log:printInfo("Received message from the broker." + check string:fromBytes(message.payload));
         string|error messageContent = 'string:fromBytes(message.payload);
         if messageContent is error {
             lock {

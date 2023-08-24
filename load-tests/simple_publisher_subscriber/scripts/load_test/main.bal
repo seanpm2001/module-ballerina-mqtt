@@ -28,6 +28,7 @@ public function main(string label, string output_csv_path) returns error? {
         log:printInfo("Started publishing messages");
     } else {
         log:printError("Error occurred while publishing messages");
+        return;
     }
 
     map<string> testResults = {};
